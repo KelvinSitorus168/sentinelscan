@@ -98,7 +98,7 @@ like SQL injection, broken access control or secrets in code.
 
 ## Roadmap
 
-- [x] v0.1: headers, TLS, cookies, CORS, bilingual reports, Claude skill
+- [x] v0.1.x: headers, TLS, cookies, CORS, bilingual reports, Claude skill
 - [ ] v0.2: DNS & email security (SPF, DMARC, CAA, DNSSEC), `security.txt`, mixed content
 - [ ] v0.3: opt-in exposed-file check (`/.env`, `/.git/`, source maps) and HTML report
 - [ ] Later: web UI (FastAPI) and batch scanning

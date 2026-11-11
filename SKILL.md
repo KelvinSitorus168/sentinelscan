@@ -30,9 +30,9 @@ python3 scripts/scan.py <url> --json --lang <en|id>
   Write your own explanation in the user's language either way.
 - Parse the JSON. Key fields: `grade`, `score`, `summary`, `findings[]` (each
   has `severity`, `title`, `why`, `fix`, `evidence`, `ref`), `passed[]`,
-  `skipped[]`, `platform[]`, `tls`, `errors[]`.
+  `skipped[]`, `platform[]`, `tls`, `notes[]` (each `{id, detail}`).
 - **If `reachable` is `false`** (grade `N/A`, exit code 3), nothing answered.
-  Either the address is wrong or the site is down, or (if `errors` shows DNS
+  Either the address is wrong or the site is down, or (if `notes` show DNS
   or proxy failures for a site that is obviously up) this environment has no
   outbound access. Tell the user, and ask them to run
   `python3 scripts/scan.py <url> -f md` on their own machine and paste the output.

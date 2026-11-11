@@ -38,6 +38,7 @@ class SelfSignedServer(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.server.server_close()
 
     def test_inspect_reports_untrusted_cert_without_crashing(self):
         info, hits, ran = tls.inspect("localhost", self.port, timeout=3)
@@ -53,6 +54,14 @@ class SelfSignedServer(unittest.TestCase):
         self.assertIn("cert_invalid", found)
         self.assertNotIn("hsts_missing", found)  # headers were read despite the bad cert
         self.assertIn("csp_missing", found)
+
+    def test_redirect_not_marked_untested_when_hsts_present(self):
+        # Port 80 is closed on the test host, so no HTTP response is obtained.
+        # Because the HTTPS endpoint sends HSTS, the redirect check must pass
+        # rather than read as "not tested".
+        result = scan(f"https://localhost:{self.port}/", timeout=3)
+        self.assertNotIn("HTTP → HTTPS redirect", result["skipped"])
+        self.assertIn("HTTP → HTTPS redirect", result["passed"])
 
 
 if __name__ == "__main__":

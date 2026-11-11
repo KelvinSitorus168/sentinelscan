@@ -11,18 +11,35 @@ TEXT = {
     "en": {"target": "Target", "final": "Final URL", "platform": "Platform", "unknown": "unknown",
            "grade": "Grade", "score": "Score", "findings": "Findings", "passed": "Passed",
            "skipped": "Not tested", "why": "Why", "fix": "Fix", "evidence": "Evidence",
-           "none": "No issues found.", "errors": "Notes", "tls": "TLS",
+           "none": "No issues found.", "notes_hdr": "Notes", "tls": "TLS",
            "days": "days left", "title": "Security report",
            "unreachable": "Could not reach the site over HTTPS or HTTP, so nothing was graded. "
                           "Check the address, or whether this machine has internet access."},
     "id": {"target": "Target", "final": "URL akhir", "platform": "Platform", "unknown": "tidak diketahui",
            "grade": "Nilai", "score": "Skor", "findings": "Temuan", "passed": "Lolos",
            "skipped": "Tidak diuji", "why": "Kenapa berbahaya", "fix": "Cara memperbaiki",
-           "evidence": "Bukti", "none": "Tidak ada masalah ditemukan.", "errors": "Catatan",
+           "evidence": "Bukti", "none": "Tidak ada masalah ditemukan.", "notes_hdr": "Catatan",
            "tls": "TLS", "days": "hari lagi", "title": "Laporan keamanan",
            "unreachable": "Website tidak bisa dihubungi lewat HTTPS maupun HTTP, jadi tidak ada penilaian. "
                           "Periksa alamatnya, atau apakah komputer ini terhubung ke internet."},
 }
+
+
+# Operational notes (not findings): things that happened during the scan.
+NOTE_TEXT = {
+    "https_failed": {
+        "en": "HTTPS request failed",
+        "id": "Permintaan HTTPS gagal"},
+    "http_port_closed": {
+        "en": "Plain HTTP (port 80) refused the connection — fine if HTTPS is enforced",
+        "id": "HTTP biasa (port 80) menolak koneksi — wajar jika HTTPS sudah dipaksakan"},
+}
+
+
+def render_note(note: dict, lang: str) -> str:
+    text = NOTE_TEXT.get(note["id"], {}).get(lang) or NOTE_TEXT.get(note["id"], {}).get("en") or note["id"]
+    detail = note.get("detail", "")
+    return f"{text}: {detail}" if detail else text
 
 
 def to_json(result: dict) -> str:
@@ -37,7 +54,7 @@ def to_text(result: dict, color: bool = True) -> str:
     out.append(f"{t['target']}: {result['target']}")
     if not result.get("reachable", True):
         out.append(f"\n{c['high']}{t['unreachable']}{c['reset']}")
-        out.extend(f" - {e}" for e in result["errors"])
+        out.extend(f" - {render_note(n, result['lang'])}" for n in result["notes"])
         return "\n".join(out)
     if result["final_url"]:
         out.append(f"{t['final']}: {result['final_url']} (HTTP {result['status']})")
@@ -67,9 +84,9 @@ def to_text(result: dict, color: bool = True) -> str:
         out.extend(f" {c['ok']}✓{c['reset']} {p}" for p in result["passed"])
     if result["skipped"]:
         out.append(f"\n{t['skipped']}: {', '.join(result['skipped'])}")
-    if result["errors"]:
-        out.append(f"\n{t['errors']}:")
-        out.extend(f" - {e}" for e in result["errors"])
+    if result["notes"]:
+        out.append(f"\n{t['notes_hdr']}:")
+        out.extend(f" - {render_note(n, result['lang'])}" for n in result["notes"])
     return "\n".join(out)
 
 
@@ -79,7 +96,7 @@ def to_markdown(result: dict) -> str:
     lines = [f"# {t['title']}: {result['target']}", ""]
     if not result.get("reachable", True):
         lines.append(t["unreachable"])
-        lines.extend(f"- {e}" for e in result["errors"])
+        lines.extend(f"- {render_note(n, result['lang'])}" for n in result["notes"])
         return "\n".join(lines) + "\n"
     lines.append("| | |\n|---|---|")
     lines.append(f"| **{t['grade']}** | **{result['grade']}** ({result['score']}/100) |")
@@ -108,7 +125,7 @@ def to_markdown(result: dict) -> str:
         lines.extend(f"- ✅ {p}" for p in result["passed"])
     if result["skipped"]:
         lines.append(f"\n**{t['skipped']}:** {', '.join(result['skipped'])}")
-    if result["errors"]:
-        lines.append(f"\n## {t['errors']}")
-        lines.extend(f"- {e}" for e in result["errors"])
+    if result["notes"]:
+        lines.append(f"\n## {t['notes_hdr']}")
+        lines.extend(f"- {render_note(n, result['lang'])}" for n in result["notes"])
     return "\n".join(lines) + "\n"

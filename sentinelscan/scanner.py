@@ -41,37 +41,38 @@ def grade_for(score: int) -> str:
     return "F"
 
 
-def _fetch_tolerant(url: str, timeout: float, errors: list[str], label: str) -> list:
+def _fetch_tolerant(url: str, timeout: float, notes: list[dict], note_id: str) -> list:
     """Fetch with normal TLS verification; on any TLS failure (bad certificate,
     TLS 1.0-only server, ...) retry without verification so headers can still
-    be checked. The TLS module reports the TLS problem itself."""
+    be checked. The TLS module reports the TLS problem itself. Failures are
+    recorded as structured notes so the report can translate them."""
     try:
         return fetch.fetch_chain(url, timeout=timeout)
     except ssl.SSLError:
         try:
             return fetch.fetch_chain(url, timeout=timeout, verify=False)
         except OSError as exc:  # ssl.SSLError is a subclass of OSError
-            errors.append(f"{label}: {exc}")
+            notes.append({"id": note_id, "detail": str(exc)})
     except OSError as exc:
-        errors.append(f"{label}: {exc}")
+        notes.append({"id": note_id, "detail": str(exc)})
     return []
 
 
-def _unreachable(target: str, lang: str, errors: list[str]) -> dict:
+def _unreachable(target: str, lang: str, notes: list[dict]) -> dict:
     return {
         "tool": "sentinelscan", "version": __version__, "target": target,
         "scanned_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "lang": lang,
         "final_url": None, "status": None, "redirect_chain": [], "platform": [], "tls": {},
         "reachable": False, "score": None, "grade": "N/A",
         "summary": {sev: 0 for sev in SEVERITY_ORDER}, "findings": [], "passed": [], "skipped": [],
-        "errors": errors,
+        "notes": notes,
     }
 
 
 def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
     host, https_url, http_url = normalize(target)
     hits: list[Hit] = []
-    errors: list[str] = []
+    notes: list[dict] = []
     checks: dict[str, list[Hit] | None] = {}  # None = could not run
 
     def record(name: str, result: list[Hit] | None) -> None:
@@ -82,19 +83,19 @@ def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
     # 1. HTTPS (follow redirects). Retry without verification so a bad
     #    certificate doesn't stop us from checking headers; the TLS module
     #    reports the certificate problem itself.
-    https_chain = _fetch_tolerant(https_url, timeout, errors, "HTTPS request failed")
+    https_chain = _fetch_tolerant(https_url, timeout, notes, "https_failed")
 
     # 2. Plain HTTP should redirect to HTTPS. If that redirect lands on a
     #    broken HTTPS endpoint, the tolerant retry still records the hop.
-    http_chain = _fetch_tolerant(http_url, timeout, errors,
-                                 "HTTP request failed (port 80 may be closed, which is fine)")
+    http_chain = _fetch_tolerant(http_url, timeout, notes, "http_port_closed")
 
     if not https_chain and not http_chain:
         # Nothing answered: DNS failure, firewall, offline site or no network
         # here. Don't grade a site we never saw.
-        return _unreachable(target, lang, errors)
+        return _unreachable(target, lang, notes)
 
     record("https", [] if https_chain else [Hit("https_unavailable", https_url)])
+    https_final = https_chain[-1] if https_chain else None
     if http_chain:
         final_scheme = urlsplit(http_chain[-1].url).scheme
         first = http_chain[0]
@@ -102,6 +103,11 @@ def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
             first.is_redirect and (first.get("location") or "").lower().startswith("https://"))
         record("redirect", [] if redirects_to_https else
                [Hit("no_https_redirect", f"{http_url} → HTTP {first.status}")])
+    elif https_final is not None and https_final.get("strict-transport-security"):
+        # Port 80 is closed/refused and HSTS is set: no plaintext is served and
+        # browsers force HTTPS anyway. That's the strongest posture, so the
+        # redirect check passes rather than reading as "not tested".
+        record("redirect", [])
     else:
         checks["redirect"] = None
 
@@ -167,5 +173,5 @@ def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
         "findings": [asdict(f) for f in findings],
         "passed": passed,
         "skipped": skipped,
-        "errors": errors,
+        "notes": notes,
     }
