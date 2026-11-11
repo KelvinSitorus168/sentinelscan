@@ -41,6 +41,22 @@ def grade_for(score: int) -> str:
     return "F"
 
 
+def _fetch_tolerant(url: str, timeout: float, errors: list[str], label: str) -> list:
+    """Fetch with normal TLS verification; on any TLS failure (bad certificate,
+    TLS 1.0-only server, ...) retry without verification so headers can still
+    be checked. The TLS module reports the TLS problem itself."""
+    try:
+        return fetch.fetch_chain(url, timeout=timeout)
+    except ssl.SSLError:
+        try:
+            return fetch.fetch_chain(url, timeout=timeout, verify=False)
+        except OSError as exc:  # ssl.SSLError is a subclass of OSError
+            errors.append(f"{label}: {exc}")
+    except OSError as exc:
+        errors.append(f"{label}: {exc}")
+    return []
+
+
 def _unreachable(target: str, lang: str, errors: list[str]) -> dict:
     return {
         "tool": "sentinelscan", "version": __version__, "target": target,
@@ -66,22 +82,12 @@ def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
     # 1. HTTPS (follow redirects). Retry without verification so a bad
     #    certificate doesn't stop us from checking headers; the TLS module
     #    reports the certificate problem itself.
-    https_chain = []
-    try:
-        https_chain = fetch.fetch_chain(https_url, timeout=timeout)
-    except ssl.SSLCertVerificationError:
-        try:
-            https_chain = fetch.fetch_chain(https_url, timeout=timeout, verify=False)
-        except (OSError, ssl.SSLError) as exc:
-            errors.append(f"HTTPS request failed: {exc}")
-    except (OSError, ssl.SSLError) as exc:
-        errors.append(f"HTTPS request failed: {exc}")
-    # 2. Plain HTTP should redirect to HTTPS.
-    http_chain = []
-    try:
-        http_chain = fetch.fetch_chain(http_url, timeout=timeout)
-    except (OSError, ssl.SSLError) as exc:
-        errors.append(f"HTTP request failed (port 80 may be closed, which is fine): {exc}")
+    https_chain = _fetch_tolerant(https_url, timeout, errors, "HTTPS request failed")
+
+    # 2. Plain HTTP should redirect to HTTPS. If that redirect lands on a
+    #    broken HTTPS endpoint, the tolerant retry still records the hop.
+    http_chain = _fetch_tolerant(http_url, timeout, errors,
+                                 "HTTP request failed (port 80 may be closed, which is fine)")
 
     if not https_chain and not http_chain:
         # Nothing answered: DNS failure, firewall, offline site or no network
@@ -130,7 +136,7 @@ def scan(target: str, lang: str = "en", timeout: float = 10.0) -> dict:
         if "error" in tls_info and not https_chain:
             tls_info = {}
         cert_hits = [h for h in tls_hits if h.id in ("cert_invalid", "cert_expiring")]
-        ver_hits = [h for h in tls_hits if h.id == "legacy_tls"]
+        ver_hits = [h for h in tls_hits if h.id in ("legacy_tls", "no_modern_tls")]
         checks["certificate"] = cert_hits if ran["certificate"] else None
         checks["tls_versions"] = ver_hits if ran["tls_versions"] else None
         hits.extend(tls_hits)

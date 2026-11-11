@@ -72,9 +72,15 @@ def inspect(host: str, port: int = 443, timeout: float = 10.0) -> tuple[dict, li
     except ssl.SSLCertVerificationError as exc:
         ran["certificate"] = True
         hits.append(Hit("cert_invalid", exc.verify_message or str(exc)))
-    except (OSError, ssl.SSLError) as exc:
+    except ssl.SSLError as exc:
+        # Handshake refused with modern settings. Keep going: the legacy
+        # probes below tell us whether the server only speaks old TLS.
+        modern_failed = str(exc)
+    except OSError as exc:
         info["error"] = str(exc)
         return info, hits, ran
+    else:
+        modern_failed = ""
 
     legacy = []
     tested = False
@@ -87,6 +93,11 @@ def inspect(host: str, port: int = 443, timeout: float = 10.0) -> tuple[dict, li
     info["legacy_versions_tested"] = tested
     if tested:
         ran["tls_versions"] = True
+    if modern_failed:
+        info["error"] = modern_failed
+        if legacy:
+            hits.append(Hit("no_modern_tls", f"Only {', '.join(legacy)} accepted; modern handshake: {modern_failed}"))
+            ran["tls_versions"] = True
     if legacy:
         hits.append(Hit("legacy_tls", "Accepted: " + ", ".join(legacy)))
     return info, hits, ran

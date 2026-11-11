@@ -37,6 +37,15 @@ CATALOG: dict[str, dict] = {
         "fix": {"en": "Renew now and enable automatic renewal (certbot renew timer, or your host's auto-SSL).",
                 "id": "Perbarui sekarang dan aktifkan perpanjangan otomatis (timer certbot renew, atau fitur auto-SSL dari hosting)."},
     },
+    "no_modern_tls": {
+        "severity": "critical", "category": "transport", "ref": "tls",
+        "title": {"en": "Server does not support TLS 1.2 or 1.3",
+                  "id": "Server tidak mendukung TLS 1.2 atau 1.3"},
+        "why": {"en": "Current browsers refuse TLS 1.0/1.1, so most visitors cannot open the site over HTTPS at all.",
+                "id": "Browser modern menolak TLS 1.0/1.1, sehingga sebagian besar pengunjung sama sekali tidak bisa membuka website lewat HTTPS."},
+        "fix": {"en": "Upgrade the server's TLS library / web server and enable TLS 1.2 and 1.3.",
+                "id": "Perbarui library TLS / web server, lalu aktifkan TLS 1.2 dan 1.3."},
+    },
     "legacy_tls": {
         "severity": "high", "category": "transport", "ref": "tls",
         "title": {"en": "Outdated TLS versions accepted",

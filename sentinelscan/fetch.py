@@ -18,6 +18,21 @@ USER_AGENT = f"SentinelScan/{__version__} (passive security scanner)"
 MAX_BODY = 256 * 1024
 
 
+def permissive_context() -> ssl.SSLContext:
+    """No verification and old protocols allowed, so we can still read the
+    headers of a site whose certificate or TLS setup is broken. The TLS
+    module reports those problems separately."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.minimum_version = ssl.TLSVersion.TLSv1
+        ctx.set_ciphers("ALL:@SECLEVEL=0")
+    except (ValueError, ssl.SSLError):
+        pass
+    return ctx
+
+
 def request(url: str, timeout: float = 10.0, verify: bool = True,
             extra_headers: dict[str, str] | None = None) -> HttpResponse:
     parts = urlsplit(url)
@@ -28,10 +43,7 @@ def request(url: str, timeout: float = 10.0, verify: bool = True,
         path += "?" + parts.query
 
     if parts.scheme == "https":
-        ctx = ssl.create_default_context()
-        if not verify:
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+        ctx = ssl.create_default_context() if verify else permissive_context()
         conn: http.client.HTTPConnection = http.client.HTTPSConnection(
             parts.hostname, parts.port or 443, timeout=timeout, context=ctx)
     else:
