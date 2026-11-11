@@ -1,0 +1,266 @@
+"""Every finding SentinelScan can report, in English and Bahasa Indonesia.
+
+Checks only emit an id + evidence (see models.Hit); the human-readable text
+lives here so translations and wording stay in one place.
+"""
+
+from __future__ import annotations
+
+from .models import Finding, Hit
+
+CATALOG: dict[str, dict] = {
+    # ---------------------------------------------------------------- transport
+    "https_unavailable": {
+        "severity": "critical", "category": "transport", "ref": "https-redirect",
+        "title": {"en": "HTTPS is not available",
+                  "id": "HTTPS tidak tersedia"},
+        "why": {"en": "Everything (passwords, cookies, form data) travels in plain text and can be read or changed by anyone on the same network.",
+                "id": "Semua data (password, cookie, isi form) dikirim tanpa enkripsi dan bisa dibaca atau diubah orang lain di jaringan yang sama, misalnya WiFi publik."},
+        "fix": {"en": "Install a TLS certificate (free via Let's Encrypt, or automatic on Vercel/Netlify/Cloudflare) and serve the site over HTTPS.",
+                "id": "Pasang sertifikat TLS (gratis lewat Let's Encrypt, atau otomatis di Vercel/Netlify/Cloudflare) lalu layani website lewat HTTPS."},
+    },
+    "cert_invalid": {
+        "severity": "critical", "category": "transport", "ref": "tls",
+        "title": {"en": "TLS certificate is not trusted",
+                  "id": "Sertifikat TLS tidak valid"},
+        "why": {"en": "Browsers show a full-page warning, and visitors cannot tell your site apart from an attacker's.",
+                "id": "Browser akan menampilkan peringatan besar, dan pengunjung tidak bisa membedakan website asli dengan website palsu milik penyerang."},
+        "fix": {"en": "Renew or reissue the certificate for the exact hostname and make sure the full chain (including intermediates) is served.",
+                "id": "Perbarui atau terbitkan ulang sertifikat untuk hostname yang tepat, dan pastikan rantai sertifikat lengkap (termasuk intermediate) ikut dikirim server."},
+    },
+    "cert_expiring": {
+        "severity": "medium", "category": "transport", "ref": "tls",
+        "title": {"en": "TLS certificate expires soon",
+                  "id": "Sertifikat TLS segera kedaluwarsa"},
+        "why": {"en": "When it expires every visitor gets a security error and the site is effectively down.",
+                "id": "Begitu kedaluwarsa, semua pengunjung akan melihat error keamanan dan website praktis tidak bisa diakses."},
+        "fix": {"en": "Renew now and enable automatic renewal (certbot renew timer, or your host's auto-SSL).",
+                "id": "Perbarui sekarang dan aktifkan perpanjangan otomatis (timer certbot renew, atau fitur auto-SSL dari hosting)."},
+    },
+    "legacy_tls": {
+        "severity": "high", "category": "transport", "ref": "tls",
+        "title": {"en": "Outdated TLS versions accepted",
+                  "id": "Server masih menerima TLS versi lama"},
+        "why": {"en": "TLS 1.0 and 1.1 are deprecated (RFC 8996) and have known weaknesses; they let attackers downgrade connections.",
+                "id": "TLS 1.0 dan 1.1 sudah resmi dihentikan (RFC 8996) dan punya kelemahan yang diketahui; penyerang bisa memaksa koneksi turun ke versi lemah."},
+        "fix": {"en": "Allow only TLS 1.2 and 1.3 in your server or CDN settings.",
+                "id": "Izinkan hanya TLS 1.2 dan 1.3 di pengaturan server atau CDN."},
+    },
+    "no_https_redirect": {
+        "severity": "high", "category": "transport", "ref": "https-redirect",
+        "title": {"en": "HTTP does not redirect to HTTPS",
+                  "id": "HTTP tidak dialihkan ke HTTPS"},
+        "why": {"en": "Visitors who type the address without https:// stay on an unencrypted connection.",
+                "id": "Pengunjung yang mengetik alamat tanpa https:// tetap berada di koneksi tanpa enkripsi."},
+        "fix": {"en": "Return a 301 redirect from every http:// URL to the same https:// URL.",
+                "id": "Kembalikan redirect 301 dari setiap URL http:// ke URL https:// yang sama."},
+    },
+    # ------------------------------------------------------------------ headers
+    "hsts_missing": {
+        "severity": "high", "category": "headers", "ref": "headers",
+        "title": {"en": "Strict-Transport-Security (HSTS) is missing",
+                  "id": "Header Strict-Transport-Security (HSTS) tidak ada"},
+        "why": {"en": "Without HSTS the browser may still try plain HTTP first, which allows SSL-stripping attacks on public Wi-Fi.",
+                "id": "Tanpa HSTS, browser masih bisa mencoba HTTP biasa lebih dulu, sehingga rawan serangan SSL stripping di WiFi publik."},
+        "fix": {"en": "Send: Strict-Transport-Security: max-age=31536000; includeSubDomains",
+                "id": "Kirim header: Strict-Transport-Security: max-age=31536000; includeSubDomains"},
+    },
+    "hsts_short": {
+        "severity": "medium", "category": "headers", "ref": "headers",
+        "title": {"en": "HSTS max-age is too short",
+                  "id": "Nilai max-age HSTS terlalu pendek"},
+        "why": {"en": "A short max-age means the protection expires quickly between visits.",
+                "id": "max-age yang pendek membuat perlindungan cepat hilang di antara kunjungan."},
+        "fix": {"en": "Use at least max-age=15552000 (180 days); 31536000 (1 year) is recommended.",
+                "id": "Gunakan minimal max-age=15552000 (180 hari); yang disarankan 31536000 (1 tahun)."},
+    },
+    "hsts_no_subdomains": {
+        "severity": "low", "category": "headers", "ref": "headers",
+        "title": {"en": "HSTS does not cover subdomains",
+                  "id": "HSTS belum mencakup subdomain"},
+        "why": {"en": "Subdomains can still be reached over plain HTTP and abused to set cookies for the main domain.",
+                "id": "Subdomain masih bisa diakses lewat HTTP biasa dan disalahgunakan untuk memasang cookie ke domain utama."},
+        "fix": {"en": "Add includeSubDomains once every subdomain supports HTTPS.",
+                "id": "Tambahkan includeSubDomains setelah semua subdomain sudah mendukung HTTPS."},
+    },
+    "csp_missing": {
+        "severity": "medium", "category": "headers", "ref": "csp",
+        "title": {"en": "Content-Security-Policy (CSP) is missing",
+                  "id": "Header Content-Security-Policy (CSP) tidak ada"},
+        "why": {"en": "CSP is the main browser-side defence against XSS: it limits which scripts are allowed to run.",
+                "id": "CSP adalah pertahanan utama di sisi browser terhadap XSS: membatasi script mana saja yang boleh dijalankan."},
+        "fix": {"en": "Start with a report-only policy, watch what breaks, then enforce it. See references/fixes.md#csp.",
+                "id": "Mulai dengan mode report-only, amati apa yang rusak, lalu terapkan penuh. Lihat references/fixes.md#csp."},
+    },
+    "csp_unsafe_inline": {
+        "severity": "low", "category": "headers", "ref": "csp",
+        "title": {"en": "CSP allows inline scripts ('unsafe-inline')",
+                  "id": "CSP mengizinkan script inline ('unsafe-inline')"},
+        "why": {"en": "Most XSS payloads are inline scripts, so this removes much of the protection CSP gives.",
+                "id": "Sebagian besar serangan XSS memakai script inline, jadi ini menghilangkan banyak perlindungan dari CSP."},
+        "fix": {"en": "Replace 'unsafe-inline' in script-src with nonces or hashes ('nonce-...' / 'strict-dynamic').",
+                "id": "Ganti 'unsafe-inline' di script-src dengan nonce atau hash ('nonce-...' / 'strict-dynamic')."},
+    },
+    "csp_unsafe_eval": {
+        "severity": "low", "category": "headers", "ref": "csp",
+        "title": {"en": "CSP allows eval() ('unsafe-eval')",
+                  "id": "CSP mengizinkan eval() ('unsafe-eval')"},
+        "why": {"en": "eval() turns injected strings into running code.",
+                "id": "eval() bisa mengubah teks yang disisipkan penyerang menjadi kode yang berjalan."},
+        "fix": {"en": "Remove 'unsafe-eval' and refactor code or libraries that rely on eval/new Function.",
+                "id": "Hapus 'unsafe-eval' dan ubah kode atau library yang masih memakai eval/new Function."},
+    },
+    "clickjacking": {
+        "severity": "medium", "category": "headers", "ref": "headers",
+        "title": {"en": "Page can be embedded in other sites (clickjacking)",
+                  "id": "Halaman bisa disisipkan di website lain (clickjacking)"},
+        "why": {"en": "An attacker can load your site in an invisible frame and trick users into clicking buttons (e.g. 'delete account').",
+                "id": "Penyerang bisa memuat website kamu di frame tak terlihat lalu menipu pengguna agar mengklik tombol (misalnya 'hapus akun')."},
+        "fix": {"en": "Send X-Frame-Options: DENY (or SAMEORIGIN), or CSP frame-ancestors 'none'.",
+                "id": "Kirim X-Frame-Options: DENY (atau SAMEORIGIN), atau CSP frame-ancestors 'none'."},
+    },
+    "nosniff_missing": {
+        "severity": "low", "category": "headers", "ref": "headers",
+        "title": {"en": "X-Content-Type-Options: nosniff is missing",
+                  "id": "Header X-Content-Type-Options: nosniff tidak ada"},
+        "why": {"en": "Browsers may guess file types, letting an uploaded file be executed as script.",
+                "id": "Browser bisa menebak jenis file sendiri, sehingga file yang diunggah bisa dijalankan sebagai script."},
+        "fix": {"en": "Send: X-Content-Type-Options: nosniff",
+                "id": "Kirim header: X-Content-Type-Options: nosniff"},
+    },
+    "referrer_missing": {
+        "severity": "low", "category": "headers", "ref": "headers",
+        "title": {"en": "Referrer-Policy is missing",
+                  "id": "Header Referrer-Policy tidak ada"},
+        "why": {"en": "Full URLs (which may contain tokens or IDs) can leak to third-party sites.",
+                "id": "URL lengkap (yang bisa berisi token atau ID) dapat bocor ke website pihak ketiga."},
+        "fix": {"en": "Send: Referrer-Policy: strict-origin-when-cross-origin",
+                "id": "Kirim header: Referrer-Policy: strict-origin-when-cross-origin"},
+    },
+    "referrer_unsafe": {
+        "severity": "medium", "category": "headers", "ref": "headers",
+        "title": {"en": "Referrer-Policy leaks full URLs",
+                  "id": "Referrer-Policy membocorkan URL lengkap"},
+        "why": {"en": "'unsafe-url' sends the full URL, even from HTTPS to HTTP sites.",
+                "id": "'unsafe-url' mengirim URL lengkap, bahkan dari situs HTTPS ke situs HTTP."},
+        "fix": {"en": "Use strict-origin-when-cross-origin or no-referrer.",
+                "id": "Gunakan strict-origin-when-cross-origin atau no-referrer."},
+    },
+    "permissions_missing": {
+        "severity": "low", "category": "headers", "ref": "headers",
+        "title": {"en": "Permissions-Policy is missing",
+                  "id": "Header Permissions-Policy tidak ada"},
+        "why": {"en": "Injected or third-party scripts can request camera, microphone or location access.",
+                "id": "Script pihak ketiga atau yang disisipkan bisa meminta akses kamera, mikrofon, atau lokasi."},
+        "fix": {"en": "Disable features you don't use, e.g. Permissions-Policy: camera=(), microphone=(), geolocation=()",
+                "id": "Matikan fitur yang tidak dipakai, misalnya Permissions-Policy: camera=(), microphone=(), geolocation=()"},
+    },
+    "server_version_leak": {
+        "severity": "low", "category": "headers", "ref": "info-leak",
+        "title": {"en": "Server software version is exposed",
+                  "id": "Versi software server terlihat publik"},
+        "why": {"en": "Attackers can look up known vulnerabilities for that exact version.",
+                "id": "Penyerang bisa langsung mencari celah yang diketahui untuk versi tersebut."},
+        "fix": {"en": "Hide the version (nginx: server_tokens off; Apache: ServerTokens Prod).",
+                "id": "Sembunyikan versinya (nginx: server_tokens off; Apache: ServerTokens Prod)."},
+    },
+    "powered_by_leak": {
+        "severity": "low", "category": "headers", "ref": "info-leak",
+        "title": {"en": "X-Powered-By header reveals the tech stack",
+                  "id": "Header X-Powered-By membocorkan teknologi yang dipakai"},
+        "why": {"en": "It tells attackers which framework and sometimes which version to target.",
+                "id": "Header ini memberi tahu penyerang framework apa (kadang beserta versinya) yang bisa diincar."},
+        "fix": {"en": "Remove it (Express: app.disable('x-powered-by'); Next.js: poweredByHeader: false; PHP: expose_php = Off).",
+                "id": "Hapus header ini (Express: app.disable('x-powered-by'); Next.js: poweredByHeader: false; PHP: expose_php = Off)."},
+    },
+    "cors_reflect_credentials": {
+        "severity": "high", "category": "headers", "ref": "cors",
+        "title": {"en": "CORS trusts any origin with credentials",
+                  "id": "CORS mempercayai origin mana pun beserta kredensial"},
+        "why": {"en": "Any website a logged-in user visits can read their private data from your site.",
+                "id": "Website mana pun yang dikunjungi pengguna yang sedang login bisa membaca data pribadinya dari website kamu."},
+        "fix": {"en": "Only echo origins from an explicit allow-list, and never combine that with credentials for untrusted origins.",
+                "id": "Hanya izinkan origin dari daftar yang jelas (allow-list), dan jangan pernah mengaktifkan credentials untuk origin yang tidak dipercaya."},
+    },
+    "cors_wildcard": {
+        "severity": "info", "category": "headers", "ref": "cors",
+        "title": {"en": "CORS allows every origin (*)",
+                  "id": "CORS mengizinkan semua origin (*)"},
+        "why": {"en": "Fine for public data or assets, risky if this endpoint ever returns user-specific data.",
+                "id": "Aman untuk data atau aset publik, tapi berisiko kalau endpoint ini mengembalikan data milik pengguna."},
+        "fix": {"en": "Confirm the response is public; otherwise restrict Access-Control-Allow-Origin.",
+                "id": "Pastikan responsnya memang publik; jika tidak, batasi Access-Control-Allow-Origin."},
+    },
+    # ------------------------------------------------------------------ cookies
+    "cookie_no_secure": {
+        "severity": "medium", "category": "cookies", "ref": "cookies",
+        "title": {"en": "Cookie without the Secure flag",
+                  "id": "Cookie tanpa flag Secure"},
+        "why": {"en": "The cookie can be sent over plain HTTP and stolen on the network.",
+                "id": "Cookie bisa terkirim lewat HTTP biasa dan dicuri di jaringan."},
+        "fix": {"en": "Set the Secure attribute on every cookie.",
+                "id": "Tambahkan atribut Secure pada setiap cookie."},
+    },
+    "cookie_no_httponly": {
+        "severity": "low", "category": "cookies", "ref": "cookies",
+        "title": {"en": "Cookie readable by JavaScript (no HttpOnly)",
+                  "id": "Cookie bisa dibaca JavaScript (tanpa HttpOnly)"},
+        "why": {"en": "If the site has an XSS bug, an attacker can steal this cookie and take over the session.",
+                "id": "Kalau ada celah XSS, penyerang bisa mencuri cookie ini dan mengambil alih sesi login."},
+        "fix": {"en": "Set HttpOnly on session and auth cookies.",
+                "id": "Tambahkan HttpOnly pada cookie sesi dan autentikasi."},
+    },
+    "cookie_no_samesite": {
+        "severity": "low", "category": "cookies", "ref": "cookies",
+        "title": {"en": "Cookie without an explicit SameSite attribute",
+                  "id": "Cookie tanpa atribut SameSite"},
+        "why": {"en": "SameSite limits cross-site request forgery (CSRF); relying on browser defaults is inconsistent.",
+                "id": "SameSite membatasi serangan CSRF; mengandalkan default browser hasilnya tidak konsisten."},
+        "fix": {"en": "Set SameSite=Lax (or Strict for sensitive cookies).",
+                "id": "Tambahkan SameSite=Lax (atau Strict untuk cookie sensitif)."},
+    },
+    "cookie_samesite_none_insecure": {
+        "severity": "medium", "category": "cookies", "ref": "cookies",
+        "title": {"en": "SameSite=None cookie without Secure",
+                  "id": "Cookie SameSite=None tanpa Secure"},
+        "why": {"en": "Browsers reject this combination, and where accepted it exposes the cookie cross-site over HTTP.",
+                "id": "Browser menolak kombinasi ini, dan jika diterima cookie akan terekspos lintas situs lewat HTTP."},
+        "fix": {"en": "Add Secure, or use SameSite=Lax if cross-site use isn't needed.",
+                "id": "Tambahkan Secure, atau gunakan SameSite=Lax jika tidak butuh akses lintas situs."},
+    },
+}
+
+CHECK_LABELS = {
+    "https": {"en": "HTTPS available", "id": "HTTPS tersedia"},
+    "redirect": {"en": "HTTP → HTTPS redirect", "id": "Redirect HTTP → HTTPS"},
+    "certificate": {"en": "TLS certificate", "id": "Sertifikat TLS"},
+    "tls_versions": {"en": "TLS versions", "id": "Versi TLS"},
+    "hsts": {"en": "Strict-Transport-Security", "id": "Strict-Transport-Security"},
+    "csp": {"en": "Content-Security-Policy", "id": "Content-Security-Policy"},
+    "clickjacking": {"en": "Clickjacking protection", "id": "Perlindungan clickjacking"},
+    "nosniff": {"en": "X-Content-Type-Options", "id": "X-Content-Type-Options"},
+    "referrer": {"en": "Referrer-Policy", "id": "Referrer-Policy"},
+    "permissions": {"en": "Permissions-Policy", "id": "Permissions-Policy"},
+    "info_leak": {"en": "No version / stack disclosure", "id": "Tidak membocorkan versi / teknologi"},
+    "cors": {"en": "CORS configuration", "id": "Konfigurasi CORS"},
+    "cookies": {"en": "Cookie flags", "id": "Flag cookie"},
+}
+
+
+def to_finding(hit: Hit, lang: str = "en") -> Finding:
+    entry = CATALOG[hit.id]
+    lang = lang if lang in ("en", "id") else "en"
+    return Finding(
+        id=hit.id,
+        severity=hit.severity or entry["severity"],
+        category=entry["category"],
+        title=entry["title"][lang],
+        why=entry["why"][lang],
+        fix=entry["fix"][lang],
+        evidence=hit.evidence,
+        ref=entry["ref"],
+    )
+
+
+def label(check: str, lang: str = "en") -> str:
+    return CHECK_LABELS.get(check, {}).get(lang) or CHECK_LABELS.get(check, {}).get("en", check)
