@@ -48,6 +48,7 @@ def inspect(host: str, port: int = 443, timeout: float = 10.0) -> tuple[dict, li
     ran = {"certificate": False, "tls_versions": False}
 
     ctx = ssl.create_default_context()
+    modern_failed = ""
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
             with ctx.wrap_socket(sock, server_hostname=host) as tls:
@@ -79,8 +80,6 @@ def inspect(host: str, port: int = 443, timeout: float = 10.0) -> tuple[dict, li
     except OSError as exc:
         info["error"] = str(exc)
         return info, hits, ran
-    else:
-        modern_failed = ""
 
     legacy = []
     tested = False
