@@ -20,11 +20,15 @@ site runs on.
 
 ## 2. Run the scanner
 
-From this skill's folder (Python 3.9+, standard library only, nothing to install):
+From this skill's folder (Python 3.9+; core needs no deps):
 
 ```bash
 python3 scripts/scan.py <url> --json --lang <en|id>
 ```
+
+DNS/email checks (SPF, DMARC, CAA, DNSSEC) need `dnspython`. If it isn't
+installed the scan still runs and reports those as not tested with a note; to
+enable them, `pip install dnspython`. Use `--no-dns` to skip them deliberately.
 
 - Use `--lang id` when the user writes in Bahasa Indonesia and `en` otherwise.
   Write your own explanation in the user's language either way.
@@ -47,7 +51,8 @@ Lead with the grade and the one or two things that matter most. Then:
    header findings together, because one config block fixes all of them.
 2. **Give fixes for the detected platform.** Read `references/fixes.md` and
    use the section named by each finding's `ref` (`headers`, `csp`,
-   `https-redirect`, `tls`, `cookies`, `cors`, `info-leak`). Pick the snippet
+   `https-redirect`, `tls`, `cookies`, `cors`, `info-leak`, `dns-email`,
+   `securitytxt`). Pick the snippet
    for the platform in `platform[]`. If the platform is unknown, ask what the
    site runs on, or give the Nginx and Apache versions.
 3. Name what passed. It shows the scan was thorough, and it keeps the

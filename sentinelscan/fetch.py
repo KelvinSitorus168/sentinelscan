@@ -55,10 +55,10 @@ def request(url: str, timeout: float = 10.0, verify: bool = True,
         start = time.monotonic()
         conn.request("GET", path, headers=headers)
         resp = conn.getresponse()
-        resp.read(MAX_BODY)  # drain (bounded); body content is not analysed in v0.1
+        raw = resp.read(MAX_BODY)  # bounded read
         elapsed = int((time.monotonic() - start) * 1000)
         return HttpResponse(url=url, status=resp.status, headers=list(resp.getheaders()),
-                            elapsed_ms=elapsed)
+                            elapsed_ms=elapsed, body=raw.decode("utf-8", "replace"))
     finally:
         conn.close()
 

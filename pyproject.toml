@@ -19,6 +19,10 @@ classifiers = [
   "Environment :: Console",
 ]
 
+# DNS/email checks (SPF, DMARC, CAA, DNSSEC). The core tool needs no deps.
+[project.optional-dependencies]
+dns = ["dnspython>=2.0"]
+
 [project.scripts]
 sentinelscan = "sentinelscan.cli:main"
 

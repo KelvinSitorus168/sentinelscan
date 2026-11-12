@@ -22,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-l", "--lang", choices=["en", "id"], default="en",
                    help="Report language: en (English) or id (Bahasa Indonesia)")
     p.add_argument("-t", "--timeout", type=float, default=10.0, help="Network timeout in seconds")
+    p.add_argument("--no-dns", action="store_true",
+                   help="Skip DNS/email checks (SPF, DMARC, CAA, DNSSEC)")
     p.add_argument("--fail-on", choices=SEVERITY_ORDER[:-1] + ["none"], default="none",
                    help="Exit with code 1 if a finding at this severity or worse exists (for CI)")
     p.add_argument("--no-color", action="store_true")
@@ -33,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = "json" if args.json else args.format
     try:
-        result = scan(args.url, lang=args.lang, timeout=args.timeout)
+        result = scan(args.url, lang=args.lang, timeout=args.timeout, check_dns=not args.no_dns)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

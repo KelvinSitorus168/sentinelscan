@@ -17,6 +17,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Location", "/new")
             self.end_headers()
             return
+        if self.path in ("/.well-known/security.txt", "/security.txt"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Contact: mailto:security@example.com\nExpires: 2027-01-01T00:00:00Z\n")
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.send_header("X-Powered-By", "Express")
@@ -46,8 +52,9 @@ class LocalServer(unittest.TestCase):
         self.assertEqual(len(chain[-1].get_all("set-cookie")), 2)
 
     def test_full_scan_http_only_site(self):
-        result = scan(f"http://127.0.0.1:{self.port}/", lang="id", timeout=3)
+        result = scan(f"http://127.0.0.1:{self.port}/", lang="id", timeout=3, check_dns=False)
         found = {f["id"] for f in result["findings"]}
+        self.assertNotIn("securitytxt_missing", found)  # the server serves one
         self.assertIn("https_unavailable", found)
         self.assertIn("no_https_redirect", found)
         self.assertIn("powered_by_leak", found)

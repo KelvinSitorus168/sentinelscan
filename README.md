@@ -30,9 +30,12 @@ Nilai: C   Skor: 71/100   (critical 0 · high 1 · medium 0 · low 3 · info 0)
 |---|---|
 | Transport | HTTPS available · HTTP → HTTPS redirect · certificate valid / expiring · TLS 1.0/1.1 still accepted |
 | Headers | HSTS · Content-Security-Policy (incl. `unsafe-inline` / `unsafe-eval`) · clickjacking (X-Frame-Options / frame-ancestors) · X-Content-Type-Options · Referrer-Policy · Permissions-Policy |
-| Disclosure | `Server` version · `X-Powered-By` |
+| Disclosure | `Server` version · `X-Powered-By` · `security.txt` |
 | CORS | Wildcard origin · any-origin reflection with credentials |
 | Cookies | `Secure` · `HttpOnly` (stricter for session-like names) · `SameSite` · `SameSite=None` without `Secure` |
+| DNS & email* | SPF (missing / `+all` / `?all` / duplicate) · DMARC (missing / `p=none`) · CAA · DNSSEC |
+
+<sub>\* DNS/email checks need `dnspython` (`pip install dnspython` or `pip install sentinelscan[dns]`). Everything else is pure standard library.</sub>
 
 Findings are scored critical (−40), high (−20), medium (−10) and low (−3),
 which gives a grade from **A+** to **F**. Cookie values are never printed or
@@ -41,10 +44,10 @@ stored.
 ## Install & use
 
 ```bash
-# from GitHub
-pipx install git+https://github.com/KelvinSitorus168/sentinelscan
+# from GitHub (add [dns] for SPF/DMARC/CAA/DNSSEC checks)
+pipx install "sentinelscan[dns] @ git+https://github.com/KelvinSitorus168/sentinelscan"
 # or from a clone
-git clone https://github.com/KelvinSitorus168/sentinelscan && cd sentinelscan && pip install .
+git clone https://github.com/KelvinSitorus168/sentinelscan && cd sentinelscan && pip install ".[dns]"
 
 sentinelscan example.com                    # colored terminal report
 sentinelscan example.com --lang id          # Bahasa Indonesia
@@ -99,7 +102,7 @@ like SQL injection, broken access control or secrets in code.
 ## Roadmap
 
 - [x] v0.1.x: headers, TLS, cookies, CORS, bilingual reports, Claude skill
-- [ ] v0.2: DNS & email security (SPF, DMARC, CAA, DNSSEC), `security.txt`, mixed content
+- [x] v0.2: DNS & email security (SPF, DMARC, CAA, DNSSEC), `security.txt`
 - [ ] v0.3: opt-in exposed-file check (`/.env`, `/.git/`, source maps) and HTML report
 - [ ] Later: web UI (FastAPI) and batch scanning
 

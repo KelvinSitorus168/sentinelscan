@@ -3,6 +3,24 @@
 All notable changes to SentinelScan are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-11-12
+
+### Added
+- **DNS & email authentication checks** (optional, needs `dnspython`):
+  - SPF: missing, `+all`/bare `all` (high), `?all` neutral, duplicate records.
+  - DMARC: missing, `p=none` monitor-only.
+  - CAA record presence.
+  - DNSSEC presence (heuristic, info-level).
+  - SPF/DMARC "missing" is medium when the domain has MX records, low otherwise.
+- **security.txt check** — flags a missing `/.well-known/security.txt`.
+- `--no-dns` flag, `[dns]` install extra, and fix snippets for SPF/DMARC/CAA/
+  DNSSEC/security.txt in `references/fixes.md`.
+- `notes[]` now includes `dnspython_missing` when DNS checks are skipped.
+
+### Notes
+- The core scanner remains dependency-free; DNS checks degrade gracefully to
+  "not tested" when `dnspython` is absent.
+
 ## [0.1.1] - 2026-11-12
 
 ### Fixed

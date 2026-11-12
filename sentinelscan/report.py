@@ -33,6 +33,9 @@ NOTE_TEXT = {
     "http_port_closed": {
         "en": "Plain HTTP (port 80) refused the connection — fine if HTTPS is enforced",
         "id": "HTTP biasa (port 80) menolak koneksi — wajar jika HTTPS sudah dipaksakan"},
+    "dnspython_missing": {
+        "en": "DNS/email checks were skipped (install dnspython to enable them)",
+        "id": "Pengecekan DNS/email dilewati (pasang dnspython untuk mengaktifkannya)"},
 }
 
 

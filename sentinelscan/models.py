@@ -33,6 +33,7 @@ class HttpResponse:
     status: int
     headers: list[tuple[str, str]] = field(default_factory=list)
     elapsed_ms: int = 0
+    body: str = ""
 
     def get(self, name: str) -> str | None:
         name = name.lower()

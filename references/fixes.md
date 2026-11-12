@@ -234,6 +234,64 @@ such as a public API, fonts or images.
 
 ---
 
+## dns-email
+
+These live in your DNS zone, not the web server. Changes can take minutes to
+hours to propagate.
+
+### SPF (stops others sending mail as your domain)
+
+One TXT record at the domain apex. List every service that sends mail for you,
+then end with `-all`:
+
+```
+v=spf1 include:_spf.google.com include:sendgrid.net -all
+```
+
+- `-all` = hard fail (recommended), `~all` = soft fail. Avoid `?all` and never `+all`.
+- Only one SPF record is allowed; merge if you have several.
+
+### DMARC (enforces SPF/DKIM and sends you reports)
+
+One TXT record at `_dmarc.<domain>`:
+
+```
+v=DMARC1; p=none; rua=mailto:dmarc@yourdomain.com
+```
+
+Roll out in stages: `p=none` (monitor, read the reports) → `p=quarantine` → `p=reject`.
+
+### CAA (limits who can issue your TLS certificates)
+
+```
+yourdomain.com.  CAA  0 issue "letsencrypt.org"
+```
+
+Name every CA you actually use (e.g. also `"pki.goog"`, `"sectigo.com"`).
+
+### DNSSEC
+
+Turn it on at your DNS provider / registrar (Cloudflare, Google Domains, etc.).
+It is usually a one-click toggle that publishes a DS record to the registry.
+Only enable it if your provider manages the keys for you.
+
+---
+
+## securitytxt
+
+Publish a plain-text file at `/.well-known/security.txt` so researchers know
+where to report issues:
+
+```
+Contact: mailto:security@yourdomain.com
+Expires: 2027-01-01T00:00:00Z
+Preferred-Languages: id, en
+```
+
+Generate and validate one at https://securitytxt.org.
+
+---
+
 ## info-leak
 
 | Stack | Setting |
